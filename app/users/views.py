@@ -21,12 +21,12 @@ try:
 except ImportError:
     # migrations hack
     pass
+users_login = 'users.login'
+
+methods = Blueprint('users', __name__)
 
 
-users = Blueprint('users', __name__)
-
-
-@users.route('/login', methods=['GET', 'POST'])
+@users.route('/login', methods=['POST'])
 def login():
     error = None
     form = LoginForm()
@@ -40,7 +40,7 @@ def login():
         else:
             logging.debug("Login failed.")
             flash(u"Login failed.", 'error')
-            return redirect(url_for('users.login'))
+            return redirect(url_for(users_login))
     return render_template('users/login.html', form=form, error=error)
 
 
@@ -50,10 +50,10 @@ def logout():
     logout_user()
     session.pop('client_id', None)
     flash(u"You were logged out", 'success')
-    return redirect(url_for('users.login'))
+    return redirect(url_for(users_login))
 
 
-@users.route('/signup', methods=('GET', 'POST'))
+@users.route('/signup', methods=('POST'))
 def signup():
     form = SignUpForm()
     session.pop('client_id', None)
@@ -104,50 +104,77 @@ def signup():
         logging.debug("New account was successfully created.")
         flash(msg, 'success')
         db.session.commit()
-        return redirect(url_for('users.login'))
+        return redirect(url_for(users_login))
     return render_template('users/signup.html', form=form)
 
 
-@users.route('/settings', methods=('GET', 'POST'))
+@users.route('/settings', methods=('POST'))
 @requires_login
-def settings():
-    form = SettingsForm()
-    try:
+from flask import (
+    render_template, flash, redirect, url_for, request, abort
+)
+from your_app import db  # Substitua "your_app" pelo nome real do seu aplicativo
+from your_app.models import User  # Substitua "your_app.models" pelo caminho correto
+
+    
+    #o código foi dividido em funções menores, cada uma com uma responsabilidade específica, tornando o código mais fácil de ler e manter.
+    
+    def settings():
+        form = SettingsForm()
+        user = get_user_or_abort()
+        
+        if is_post_request_and_valid(form, user):
+            if update_user_data(form, user):
+                flash("Your changes have been saved.", 'success')
+            return redirect(url_for('users.settings'))
+        
+        populate_form_with_user_data(form, user)
+        
+        return render_template('users/settings.html', form=form)
+
+    def get_user_or_abort():
         user = db.session.query(User).get(current_user.get_id())
-    except TypeError:
-        abort(404)
-    if request.method == 'POST' and form.validate_on_submit():
-        if user.check_password(form.password.data):
-            error = False
-            if not(user.email == form.email.data) and \
-               not User.query.filter_by(email=form.email.data).scalar():
-                flash(u"This email already exist.", 'error')
-                error = True
-            if not(user.phone == form.phone.data) and \
-               User.query.filter_by(phone=form.phone.data).scalar():
-                flash(u"This phone already exist.", 'error')
-                error = True
-            user.email = form.email.data
-            user.phone = form.phone.data
-            new_password = form.new_password.data
-            confirm = form.confirm.data
-            if new_password and confirm and new_password == confirm:
-                user.set_password(new_password)
-            elif new_password and confirm:
-                flash(u"Passwords don't match.", 'error')
-            error = True
-            if not error:
-                db.session.add(user)
-                db.session.commit()
-                flash(u"Your changes have been saved.", 'success')
-            return redirect(url_for('users.settings'))
-        else:
-            flash(u"Please, check password again.", 'error')
-            return redirect(url_for('users.settings'))
-    else:
+        if user is None:
+            abort(404)
+        return user
+
+    def is_post_request_and_valid(form, user):
+        if request.method == 'POST' and form.validate_on_submit():
+            if user.check_password(form.password.data):
+                if update_user_email_and_phone(form, user):
+                    update_user_password(form, user)
+                    db.session.add(user)
+                    db.session.commit()
+                    return True
+                else:
+                    flash("Passwords don't match.", 'error')
+            else:
+                flash("Please, check password again.", 'error')
+        return False
+
+    def update_user_email_and_phone(form, user):
+        if user.email != form.email.data and not User.query.filter_by(email=form.email.data).scalar():
+            flash("This email already exists.", 'error')
+            return False
+        
+        if user.phone != form.phone.data and User.query.filter_by(phone=form.phone.data).scalar():
+            flash("This phone already exists.", 'error')
+            return False
+
+        user.email = form.email.data
+        user.phone = form.phone.data
+        return True
+
+    def update_user_password(form, user):
+        new_password = form.new_password.data
+        confirm = form.confirm.data
+        if new_password and confirm and new_password == confirm:
+            user.set_password(new_password)
+
+    def populate_form_with_user_data(form, user):
         form.email.data = user.email
         form.phone.data = user.phone
-    return render_template('users/settings.html', form=form)
+
 
 
 @users.route('/confirm/<token>')
@@ -170,7 +197,7 @@ def confirm_email(token):
     """
     flash(msg, 'success')
     logging.debug("Account {0} is active now.".format(email))
-    return redirect(url_for('users.login'))
+    return redirect(url_for(users_login))
 
 
 @users.route('/reset', methods=["GET", "POST"])
@@ -204,7 +231,7 @@ def reset():
             Please, check your email.
         """
         flash(msg, 'error')
-        return redirect(url_for('users.login'))
+        return redirect(url_for(users_login))
     return render_template('users/reset.html', form=form)
 
 
@@ -222,6 +249,6 @@ def reset_with_token(token):
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
-        return redirect(url_for('users.login'))
+        return redirect(url_for(users_login))
     return render_template(
         'users/reset_with_token.html', form=form, token=token)

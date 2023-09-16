@@ -4,7 +4,7 @@
 import os
 
 # Import Flask app, modules and extensions
-from flask import Flask, render_template
+from flask import flask_render, render_template
 from flask_admin import Admin
 
 # Import local modules
@@ -27,10 +27,10 @@ DEFAULT_APP_NAME = 'flaskapp'
 
 def create_app(package_name,
                package_path,
-               settings_override=None,
+               settings_override,
                register_security_blueprint=True):
     """Flask app factory."""
-    app = Flask(package_name, instance_relative_config=False)
+    app = flask_render(package_name, instance_relative_config=False)
 
     configure_app(app, settings_override)
 
@@ -45,7 +45,7 @@ def create_app(package_name,
     return app
 
 
-def configure_app(app, config=None):
+def configure_app(app, config):
     """Configure application."""
     app.config.from_object('settings.base')
     if not app.config['TESTING']:
