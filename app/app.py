@@ -25,9 +25,7 @@ __all__ = ['create_app']
 DEFAULT_APP_NAME = 'flaskapp'
 
 
-def create_app(package_name,
-               settings_override,
-               register_security_blueprint=False):
+def create_app(package_name):
     """Flask app factory."""
     app = flask_render(package_name, instance_relative_config=True)
 
