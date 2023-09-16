@@ -31,7 +31,7 @@ def create_app(package_name,
     """Flask app factory."""
     app = flask_render(package_name, instance_relative_config=True)
 
-    configure_app(app, settings_override)
+    configure_app(app)
 
     configure_logging(app)
 
